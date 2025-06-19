@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 # CONFIGURACIÓN DE LA PÁGINA
 # =============================================
 st.set_page_config(
-    page_title="Dashboard de Morosidad - Garbery S.R.L",
+    page_title="Dashboard de Morosidad - IDEMEFA",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -155,7 +155,7 @@ except Exception as e:
 # =============================================
 # INTERFAZ DEL DASHBOARD
 # =============================================
-st.title("📊 Dashboard de Análisis de Morosidad - Garbery S.R.L")
+st.title("📊 Dashboard de Análisis de Morosidad - IDEMEFA")
 st.markdown("""
     **Análisis completo** del comportamiento de pagos, morosidad y riesgo crediticio de clientes.
 """)
@@ -802,6 +802,6 @@ with st.sidebar:
 # =============================================
 st.sidebar.markdown("---")
 st.sidebar.info("""
-    **Dasboard CxC Garbery S.R.L**  
+    **Dasboard CxC IDEMEFA**  
     Versión 2.0 - Junio 2024
 """)

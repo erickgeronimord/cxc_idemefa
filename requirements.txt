@@ -1,8 +1,10 @@
+### 3. Archivo `requirements.txt` (versión estable)
+```txt
 streamlit==1.36.0
 pandas==2.2.2
 numpy==1.26.4
 plotly==5.22.0
-scikit-learn==1.4.1.post1  # Versión especial compatible
+scikit-learn==1.4.1.post1
 requests==2.31.0
 openpyxl==3.1.2
 xlrd==2.0.1

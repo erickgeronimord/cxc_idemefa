@@ -1,25 +1,48 @@
 # =============================================
-# Verificación en el código
-# =============================================
-try:
-    import plotly
-    import plotly.express as px
-    st.success(f"Plotly versión {plotly.__version__} importado correctamente")
-except ImportError as e:
-    st.error(f"Error crítico: No se pudo importar Plotly Express: {str(e)}")
-    st.stop()  # Detiene la ejecución si no está instalado
-# =============================================
 # IMPORTACIÓN DE LIBRERÍAS (versiones estables)
 # =============================================
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.express as px
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import warnings
-warnings.filterwarnings('ignore')
+import sys
+
+# 1. Importación crítica de Streamlit
+try:
+    import streamlit as st
+except ImportError:
+    sys.stderr.write("Error: Streamlit no está instalado. Ejecuta: pip install streamlit\n")
+    sys.exit(1)
+
+# 2. Configuración básica de la página (ahora que st está disponible)
+st.set_page_config(
+    page_title="Dashboard de Morosidad - IDEMEFA",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 3. Importación de Plotly con manejo de errores visual
+try:
+    import plotly.express as px
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    st.error("""
+        ❌ Plotly Express no está instalado. 
+        Por favor instala con:  
+        `pip install plotly==5.22.0`
+    """)
+    PLOTLY_AVAILABLE = False
+    st.stop()
+
+# 4. Importación del resto de dependencias
+try:
+    import pandas as pd
+    import numpy as np
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler
+    import warnings
+    warnings.filterwarnings('ignore')
+except ImportError as e:
+    st.error(f"Error al importar dependencias: {str(e)}")
+    st.stop()
 
 # =============================================
 # CONFIGURACIÓN DE LA PÁGINA

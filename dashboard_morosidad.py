@@ -12,6 +12,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import warnings
+import requests
+from io import BytesIO
+import tempfile
+import os
 warnings.filterwarnings('ignore')
 
 # =============================================
@@ -47,18 +51,49 @@ def format_percent(value):
     except (ValueError, TypeError):
         return str(value)
 
+def download_google_drive_file(url):
+    """Descarga un archivo de Google Drive dado un enlace compartido"""
+    try:
+        # Transformar el enlace compartido a enlace de descarga directa
+        file_id = url.split('/d/')[1].split('/')[0]
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        # Descargar el archivo
+        response = requests.get(download_url)
+        response.raise_for_status()
+        
+        # Guardar temporalmente
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+            
+        return tmp_path
+    except Exception as e:
+        st.error(f"Error al descargar el archivo: {str(e)}")
+        return None
+
 # =============================================
 # CARGA Y PROCESAMIENTO DE DATOS
 # =============================================
 @st.cache_data
 def load_data():
     try:
-        # Cargar datos del archivo Excel
-        file_path = "D:/Desktop2/TRABAJO BD/PROYECTOS_DB/IDEMEFA/MOROSIDAD/comportamiento saldo cuenta x cobrar.xlsx"
+        # URL del archivo en Google Drive (acceso público)
+        drive_url = "https://docs.google.com/spreadsheets/d/16VCwSt7qsHblFoFO2H331s5pJDEPHtRa/edit?usp=sharing"
         
-        # Leer hojas
-        estado_cuenta = pd.read_excel(file_path, sheet_name='estado_de_cuenta', dtype={'NCF': str, 'Documento': str})
-        comportamiento_pago = pd.read_excel(file_path, sheet_name='comportamiento_de_pago', dtype={'NCF': str, 'Documento': str})
+        # Descargar el archivo temporalmente
+        with st.spinner('Descargando datos desde Google Drive...'):
+            file_path = download_google_drive_file(drive_url)
+            
+            if file_path is None:
+                return pd.DataFrame(), pd.DataFrame()
+            
+            # Leer el archivo Excel
+            estado_cuenta = pd.read_excel(file_path, sheet_name='estado_de_cuenta', dtype={'NCF': str, 'Documento': str})
+            comportamiento_pago = pd.read_excel(file_path, sheet_name='comportamiento_de_pago', dtype={'NCF': str, 'Documento': str})
+            
+            # Eliminar el archivo temporal
+            os.unlink(file_path)
         
         # Limpieza y transformación
         estado_cuenta['Fecha_fatura'] = pd.to_datetime(estado_cuenta['Fecha_fatura'], errors='coerce')
@@ -99,24 +134,26 @@ def load_data():
         return estado_cuenta, comportamiento_pago
     
     except Exception as e:
-        st.error(f"Error al cargar los datos: {str(e)}")
+        st.error(f"Error al procesar los datos: {str(e)}")
         return pd.DataFrame(), pd.DataFrame()
 
-# Cargar datos
+# =============================================
+# CARGAR LOS DATOS
+# =============================================
 estado_cuenta, comportamiento_pago = load_data()
 
-# Verificar datos cargados
+# Verificar si los datos se cargaron correctamente
 if estado_cuenta.empty or comportamiento_pago.empty:
     st.error("No se pudieron cargar los datos. Verifica la ruta del archivo y la estructura.")
     st.stop()
 
 # =============================================
-# MODELO PREDICTIVO MEJORADO
+# MODELO PREDICTIVO
 # =============================================
 try:
     # Preparar datos para el modelo
     X = estado_cuenta[['Dias', 'Inicial', 'Balance']].fillna(0)
-    y = (estado_cuenta['Dias'] > 60).astype(int)
+    y = (estado_cuenta['Dias'] > 60).astype(int)  # Morosidad según definición
     
     # Entrenar modelo
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -157,7 +194,7 @@ except Exception as e:
 # =============================================
 st.title("📊 Dashboard de Análisis de Morosidad - IDEMEFA")
 st.markdown("""
-    **Análisis completo** del comportamiento de pagos, morosidad y riesgo crediticio de clientes.
+    **Análisis** del comportamiento de pagos, morosidad y riesgo crediticio de los clientes.
 """)
 
 # Crear pestañas
@@ -380,6 +417,7 @@ with tab2:
     - **Diagrama de cajas**: Muestra la dispersión de días de atraso en cada categoría, revelando patrones ocultos.
     - **Evolución temporal**: Permite detectar si la morosidad está mejorando o empeorando con el tiempo.
     """)
+
 
 # =============================================
 # PESTAÑA 3: PREDICCIÓN DE RIESGO
@@ -802,6 +840,6 @@ with st.sidebar:
 # =============================================
 st.sidebar.markdown("---")
 st.sidebar.info("""
-    **Dasboard CxC IDEMEFA**  
+    **Dashboard cxc IDEMEFA**  
     Versión 2.0 - Junio 2024
 """)

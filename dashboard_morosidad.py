@@ -199,24 +199,30 @@ with tab1:
 with tab2:
     st.header("🔍 Análisis Detallado de Morosidad", divider="blue")
     
-    # Top clientes morosos (calculado una vez)
+    # Primero creamos la máscara booleana
+    morosos_mask = estado_cuenta['Dias'] > 60
+    
+    # Luego aplicamos el filtro - versión corregida
     top_morosos = (
         estado_cuenta[morosos_mask]
         .groupby('Nombre Cliente')['Balance']
         .sum()
         .nlargest(10)
+        .reset_index()  # Añadido para mejor visualización
+    )
     
     cols = st.columns(2)
     with cols[0]:
         st.plotly_chart(
             px.bar(
-                top_morosos.reset_index(),
+                top_morosos,
                 x='Nombre Cliente',
                 y='Balance',
-                title='Top 10 Clientes Morosos'
+                title='Top 10 Clientes Morosos',
+                labels={'Balance': 'Monto en Morosidad', 'Nombre Cliente': 'Cliente'}
             ),
             use_container_width=True
-        ))
+        )
     
     with cols[1]:
         # Análisis por día de semana
@@ -225,7 +231,10 @@ with tab2:
         
         st.plotly_chart(
             px.bar(
-                estado_cuenta.groupby('Dia_Semana')['Balance'].sum().reindex(dias_order).reset_index(),
+                estado_cuenta.groupby('Dia_Semana')['Balance']
+                .sum()
+                .reindex(dias_order)
+                .reset_index(),
                 x='Dia_Semana',
                 y='Balance',
                 title='Morosidad por Día de Vencimiento'

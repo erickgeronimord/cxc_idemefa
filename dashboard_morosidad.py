@@ -6,7 +6,6 @@ INICIO DEL SCRIPT CON MANEJO ROBUSTO DE IMPORTACIONES
 """
 
 import sys
-import warnings
 warnings.filterwarnings('ignore')
 
 # 1. Verificación básica del entorno Python

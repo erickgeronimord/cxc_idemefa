@@ -117,10 +117,17 @@ def train_model(_estado_cuenta):
         
         return _estado_cuenta, model
     except:
-        # Fallback si el modelo falla
+        # Fallback si el modelo falla - VERSIÓN CORREGIDA
         _estado_cuenta['Probabilidad_Morosidad'] = np.where(
             _estado_cuenta['Dias'] > 60, 0.85,
-            np.where(_estado_cuenta['Dias'] > 30, 0.5, 0.2)
+            np.where(
+                _estado_cuenta['Dias'] > 30, 0.5,
+                np.where(
+                    _estado_cuenta['Dias'] > 15, 0.3,
+                    0.1
+                )
+            )
+        )
         
         _estado_cuenta['Segmento_Riesgo'] = pd.cut(
             _estado_cuenta['Probabilidad_Morosidad'],

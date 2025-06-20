@@ -1,58 +1,71 @@
-# =============================================
-# IMPORTACIÓN DE LIBRERÍAS (versiones estables)
-# =============================================
-import sys
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-# 1. Importación crítica de Streamlit
+"""
+INICIO DEL SCRIPT CON MANEJO ROBUSTO DE IMPORTACIONES
+"""
+
+import sys
+import warnings
+warnings.filterwarnings('ignore')
+
+# 1. Verificación básica del entorno Python
+if sys.version_info < (3, 8):
+    sys.exit("Se requiere Python 3.8 o superior")
+
+# 2. Importación de Streamlit con verificación
 try:
     import streamlit as st
 except ImportError:
-    sys.stderr.write("Error: Streamlit no está instalado. Ejecuta: pip install streamlit\n")
+    print("\nERROR CRÍTICO: Streamlit no está instalado", file=sys.stderr)
+    print("Instala con: pip install streamlit==1.36.0\n", file=sys.stderr)
     sys.exit(1)
 
-# 2. Configuración básica de la página (ahora que st está disponible)
-st.set_page_config(
-    page_title="Dashboard de Morosidad - IDEMEFA",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# 3. Importación de Plotly con manejo de errores visual
+# 3. Configuración inicial de la página (ahora que st está disponible)
 try:
+    st.set_page_config(
+        page_title="Dashboard de Morosidad",
+        page_icon="📊",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+except Exception as e:
+    print(f"Error configurando página: {str(e)}", file=sys.stderr)
+
+# 4. Importación de Plotly con verificación en dos pasos
+plotly_available = False
+try:
+    import plotly
     import plotly.express as px
-    PLOTLY_AVAILABLE = True
+    plotly_available = True
 except ImportError:
     st.error("""
-        ❌ Plotly Express no está instalado. 
-        Por favor instala con:  
-        `pip install plotly==5.22.0`
+        ❌ Error crítico: Plotly no está instalado correctamente.
+        
+        Soluciones:
+        1. Ejecuta: pip install plotly==5.22.0
+        2. Verifica tu archivo requirements.txt
+        3. Revisa los logs en Streamlit Cloud
     """)
-    PLOTLY_AVAILABLE = False
     st.stop()
 
-# 4. Importación del resto de dependencias
+# 5. Importación de otras dependencias principales
 try:
     import pandas as pd
     import numpy as np
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
-    import warnings
-    warnings.filterwarnings('ignore')
 except ImportError as e:
-    st.error(f"Error al importar dependencias: {str(e)}")
+    st.error(f"Error importando dependencias: {str(e)}")
     st.stop()
 
-# =============================================
-# CONFIGURACIÓN DE LA PÁGINA
-# =============================================
-st.set_page_config(
-    page_title="Dashboard de Morosidad - IDEMEFA",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 6. Verificación final del entorno
+if not plotly_available:
+    st.warning("""
+        Advertencia: Plotly no está disponible.
+        Algunas visualizaciones no funcionarán.
+    """)
 
 # =============================================
 # FUNCIONES AUXILIARES (modularizadas)

@@ -216,7 +216,7 @@ with tab2:
                 title='Top 10 Clientes Morosos'
             ),
             use_container_width=True
-        )
+        ))
     
     with cols[1]:
         # Análisis por día de semana

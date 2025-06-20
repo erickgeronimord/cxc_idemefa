@@ -6,8 +6,7 @@ INICIO DEL SCRIPT CON MANEJO ROBUSTO DE IMPORTACIONES
 """
 
 import sys
-warnings.filterwarnings('ignore')
-
+import warnings
 # 1. Verificación básica del entorno Python
 if sys.version_info < (3, 8):
     sys.exit("Se requiere Python 3.8 o superior")

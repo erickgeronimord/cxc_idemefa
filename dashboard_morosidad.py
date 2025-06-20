@@ -1,4 +1,14 @@
 # =============================================
+# Verificación en el código
+# =============================================
+try:
+    import plotly
+    import plotly.express as px
+    st.success(f"Plotly versión {plotly.__version__} importado correctamente")
+except ImportError as e:
+    st.error(f"Error crítico: No se pudo importar Plotly Express: {str(e)}")
+    st.stop()  # Detiene la ejecución si no está instalado
+# =============================================
 # IMPORTACIÓN DE LIBRERÍAS (versiones estables)
 # =============================================
 import streamlit as st

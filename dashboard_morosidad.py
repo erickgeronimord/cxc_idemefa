@@ -1,54 +1,57 @@
+# =============================================
+# IMPORTACIÓN DE LIBRERÍAS CON VERIFICACIÓN EXTENDIDA
+# =============================================
 import sys
 import warnings
 warnings.filterwarnings('ignore')
 
-def check_imports():
-    """Verifica todas las importaciones críticas"""
-    required = {
-        'streamlit': '1.36.0',
-        'pandas': '2.2.2',
-        'numpy': '2.0.0',
-        'plotly': '5.22.0',
-        'sklearn': '1.5.0'
-    }
-    
+# Verificación básica de Python
+if sys.version_info >= (3, 12):
+    sys.stderr.write("⚠️ Advertencia: Python 3.12+ puede tener problemas de compatibilidad\n")
+
+# Diccionario de verificación de paquetes
+REQUIRED_PACKAGES = {
+    'streamlit': '1.36.0',
+    'pandas': '2.2.2',
+    'numpy': '2.0.0',
+    'plotly': '5.22.0',
+    'scikit-learn': '1.5.0'
+}
+
+# Función de verificación mejorada
+def verify_environment():
     missing = []
     wrong_version = []
     
-    for lib, req_version in required.items():
+    for package, required_version in REQUIRED_PACKAGES.items():
         try:
-            module = __import__(lib)
+            module = __import__(package)
             current_version = getattr(module, '__version__', '0.0.0')
-            if current_version != req_version:
-                wrong_version.append(f"{lib} (requerido: {req_version}, instalado: {current_version})")
+            if current_version.split('.')[0] != required_version.split('.')[0]:  # Verificar versión mayor
+                wrong_version.append(f"{package}=={required_version} (instalado: {current_version})")
         except ImportError:
-            missing.append(lib)
+            missing.append(package)
     
     return missing, wrong_version
 
-# Verificar importaciones antes de usar Streamlit
-missing, wrong_version = check_imports()
+missing, wrong_version = verify_environment()
 
+# Manejo de errores mejorado
 if missing or wrong_version:
-    # Intenta mostrar el error usando Streamlit si está disponible
     try:
         import streamlit as st
+        st.error("❌ Error de configuración del entorno")
         if missing:
-            st.error(f"❌ Faltan paquetes: {', '.join(missing)}")
+            st.error(f"Paquetes faltantes: {', '.join(missing)}")
         if wrong_version:
-            st.error(f"⚠️ Versiones incorrectas: {', '.join(wrong_version)}")
-        st.info("Ejecuta: pip install -r requirements.txt")
+            st.error(f"Versiones incorrectas: {', '.join(wrong_version)}")
+        st.info("Por favor actualiza requirements.txt y runtime.txt")
         st.stop()
     except:
-        # Fallback a mensaje de consola si Streamlit no está disponible
-        print("Error crítico en las dependencias:", file=sys.stderr)
-        if missing:
-            print(f"Faltan paquetes: {', '.join(missing)}", file=sys.stderr)
-        if wrong_version:
-            print(f"Versiones incorrectas: {', '.join(wrong_version)}", file=sys.stderr)
+        sys.stderr.write(f"Error: Paquetes faltantes: {missing}, Versiones incorrectas: {wrong_version}\n")
         sys.exit(1)
 
-# Ahora las importaciones normales pueden continuar
+# Ahora importar normalmente
 import streamlit as st
 import plotly.express as px
 import pandas as pd

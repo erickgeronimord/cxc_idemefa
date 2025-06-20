@@ -1,69 +1,61 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-INICIO DEL SCRIPT CON MANEJO ROBUSTO DE IMPORTACIONES
-"""
-
 import sys
 import warnings
-# 1. Verificación básica del entorno Python
-if sys.version_info < (3, 8):
-    sys.exit("Se requiere Python 3.8 o superior")
+warnings.filterwarnings('ignore')
 
-# 2. Importación de Streamlit con verificación
-try:
-    import streamlit as st
-except ImportError:
-    print("\nERROR CRÍTICO: Streamlit no está instalado", file=sys.stderr)
-    print("Instala con: pip install streamlit==1.36.0\n", file=sys.stderr)
-    sys.exit(1)
+def check_imports():
+    """Verifica todas las importaciones críticas"""
+    required = {
+        'streamlit': '1.36.0',
+        'pandas': '2.2.2',
+        'numpy': '2.0.0',
+        'plotly': '5.22.0',
+        'sklearn': '1.5.0'
+    }
+    
+    missing = []
+    wrong_version = []
+    
+    for lib, req_version in required.items():
+        try:
+            module = __import__(lib)
+            current_version = getattr(module, '__version__', '0.0.0')
+            if current_version != req_version:
+                wrong_version.append(f"{lib} (requerido: {req_version}, instalado: {current_version})")
+        except ImportError:
+            missing.append(lib)
+    
+    return missing, wrong_version
 
-# 3. Configuración inicial de la página (ahora que st está disponible)
-try:
-    st.set_page_config(
-        page_title="Dashboard de Morosidad",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-except Exception as e:
-    print(f"Error configurando página: {str(e)}", file=sys.stderr)
+# Verificar importaciones antes de usar Streamlit
+missing, wrong_version = check_imports()
 
-# 4. Importación de Plotly con verificación en dos pasos
-plotly_available = False
-try:
-    import plotly
-    import plotly.express as px
-    plotly_available = True
-except ImportError:
-    st.error("""
-        ❌ Error crítico: Plotly no está instalado correctamente.
-        
-        Soluciones:
-        1. Ejecuta: pip install plotly==5.22.0
-        2. Verifica tu archivo requirements.txt
-        3. Revisa los logs en Streamlit Cloud
-    """)
-    st.stop()
+if missing or wrong_version:
+    # Intenta mostrar el error usando Streamlit si está disponible
+    try:
+        import streamlit as st
+        if missing:
+            st.error(f"❌ Faltan paquetes: {', '.join(missing)}")
+        if wrong_version:
+            st.error(f"⚠️ Versiones incorrectas: {', '.join(wrong_version)}")
+        st.info("Ejecuta: pip install -r requirements.txt")
+        st.stop()
+    except:
+        # Fallback a mensaje de consola si Streamlit no está disponible
+        print("Error crítico en las dependencias:", file=sys.stderr)
+        if missing:
+            print(f"Faltan paquetes: {', '.join(missing)}", file=sys.stderr)
+        if wrong_version:
+            print(f"Versiones incorrectas: {', '.join(wrong_version)}", file=sys.stderr)
+        sys.exit(1)
 
-# 5. Importación de otras dependencias principales
-try:
-    import pandas as pd
-    import numpy as np
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.model_selection import train_test_split
-    from sklearn.preprocessing import StandardScaler
-except ImportError as e:
-    st.error(f"Error importando dependencias: {str(e)}")
-    st.stop()
-
-# 6. Verificación final del entorno
-if not plotly_available:
-    st.warning("""
-        Advertencia: Plotly no está disponible.
-        Algunas visualizaciones no funcionarán.
-    """)
+# Ahora las importaciones normales pueden continuar
+import streamlit as st
+import plotly.express as px
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 # =============================================
 # FUNCIONES AUXILIARES (modularizadas)

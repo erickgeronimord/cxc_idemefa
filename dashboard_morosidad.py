@@ -2,56 +2,64 @@
 # IMPORTACIÓN DE LIBRERÍAS CON VERIFICACIÓN EXTENDIDA
 # =============================================
 import sys
+import subprocess
 import warnings
 warnings.filterwarnings('ignore')
 
-# Verificación básica de Python
+# Verificación de entorno Python
 if sys.version_info >= (3, 12):
-    sys.stderr.write("⚠️ Advertencia: Python 3.12+ puede tener problemas de compatibilidad\n")
+    print("⚠️ Advertencia: Python 3.12+ puede tener problemas de compatibilidad", file=sys.stderr)
 
-# Diccionario de verificación de paquetes
-REQUIRED_PACKAGES = {
-    'streamlit': '1.36.0',
-    'pandas': '2.2.2',
-    'numpy': '2.0.0',
-    'plotly': '5.22.0',
-    'scikit-learn': '1.5.0'
-}
+# Lista de paquetes críticos
+CRITICAL_PACKAGES = [
+    ('streamlit', '1.36.0'),
+    ('pandas', '2.2.2'),
+    ('numpy', '2.0.0'),
+    ('plotly', '5.22.0'),
+    ('scikit-learn', '1.5.0')
+]
 
-# Función de verificación mejorada
-def verify_environment():
+def check_packages():
     missing = []
     wrong_version = []
     
-    for package, required_version in REQUIRED_PACKAGES.items():
+    for package, version in CRITICAL_PACKAGES:
         try:
-            module = __import__(package)
-            current_version = getattr(module, '__version__', '0.0.0')
-            if current_version.split('.')[0] != required_version.split('.')[0]:  # Verificar versión mayor
-                wrong_version.append(f"{package}=={required_version} (instalado: {current_version})")
+            mod = __import__(package)
+            current_version = getattr(mod, '__version__', '0.0.0')
+            if not current_version.startswith(version.split('.')[0] + '.'):  # Compara versión mayor
+                wrong_version.append(f"{package}=={version} (instalado: {current_version})")
         except ImportError:
             missing.append(package)
     
     return missing, wrong_version
 
-missing, wrong_version = verify_environment()
+missing, wrong_version = check_packages()
 
-# Manejo de errores mejorado
 if missing or wrong_version:
     try:
         import streamlit as st
-        st.error("❌ Error de configuración del entorno")
+        st.error("🚨 Error Crítico en el Entorno")
         if missing:
             st.error(f"Paquetes faltantes: {', '.join(missing)}")
+            st.code("pip install " + " ".join(missing), language="bash")
         if wrong_version:
             st.error(f"Versiones incorrectas: {', '.join(wrong_version)}")
-        st.info("Por favor actualiza requirements.txt y runtime.txt")
+            st.code("pip install --upgrade " + " ".join([p.split('==')[0] for p in wrong_version]), language="bash")
+        
+        st.markdown("""
+        **Solución inmediata:**
+        1. Verifica tu archivo `requirements.txt`
+        2. Asegúrate de tener `runtime.txt` con `python-3.11.9`
+        3. Espera 5 minutos tras actualizar los archivos
+        """)
         st.stop()
     except:
-        sys.stderr.write(f"Error: Paquetes faltantes: {missing}, Versiones incorrectas: {wrong_version}\n")
+        print("ERROR: Paquetes faltantes:", missing, file=sys.stderr)
+        print("ERROR: Versiones incorrectas:", wrong_version, file=sys.stderr)
         sys.exit(1)
 
-# Ahora importar normalmente
+# Resto de tus importaciones
 import streamlit as st
 import plotly.express as px
 import pandas as pd

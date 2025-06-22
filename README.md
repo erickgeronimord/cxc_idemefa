@@ -1,20 +1,29 @@
-# Dashboard de Morosidad - IDEMEFA
+# 📊 MOROSIDAD – Sistema de Análisis Predictivo de Cartera Vencida
 
-Análisis de morosidad y riesgo crediticio para IDEMEFA
+**Morosidad** es una app desarrollada con Python y Streamlit que permite anticipar la probabilidad de impago de clientes y visualizar tendencias de morosidad en tiempo real.
 
-## 🚀 Despliegue en Streamlit Cloud
+## 🎯 Objetivo
+Permitir a las empresas tomar decisiones basadas en datos para:
+- Identificar clientes con alto riesgo de morosidad
+- Definir límites de crédito más seguros
+- Aplicar seguimientos proactivos
+- Reducir pérdidas por cuentas incobrables
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://morosidadidmf.streamlit.app)
+## 🛠️ Tecnologías utilizadas
+- Python
+- Streamlit
+- Pandas
+- Visualización de datos en tiempo real
 
-## 📦 Requisitos
+## 🖼️ Capturas
+(*Agrega aquí tus imágenes o GIFs*)
 
-- Python 3.10.13
-- Librerías listadas en `requirements.txt`
+## 🧪 Demo
+[🔗 cxcidemefa.streamlit.app](https://cxcidemefa.streamlit.app/)
 
-## 🔧 Instalación local
-
+## 🚀 Instalación
 ```bash
-git clone https://github.com/tuusuario/cxc_idemefa.git
+git clone https://github.com/erickgeronimord/cxc_idemefa.git
 cd cxc_idemefa
 pip install -r requirements.txt
-streamlit run dashboard_morosidad.py
+streamlit run app.py

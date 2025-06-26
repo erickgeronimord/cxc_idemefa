@@ -82,7 +82,7 @@ def load_data():
         drive_url = "https://docs.google.com/spreadsheets/d/16VCwSt7qsHblFoFO2H331s5pJDEPHtRa/edit?usp=sharing"
         
         # Descargar el archivo temporalmente
-        with st.spinner('Descargando datos desde Google Drive...'):
+        with st.spinner('Loading data...'):
             file_path = download_google_drive_file(drive_url)
             
             if file_path is None:
@@ -213,50 +213,72 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.header("📌 Resumen Ejecutivo", divider="blue")
     
-    # KPIs principales
+    # KPIs PRINCIPALES
     total_cartera = estado_cuenta['Balance'].sum()
-    total_morosidad = estado_cuenta[estado_cuenta['Dias'] > 60]['Balance'].sum()
-    clientes_morosos = estado_cuenta[estado_cuenta['Dias'] > 60]['Codigo'].nunique()
-    porcentaje_morosidad = (total_morosidad / total_cartera) * 100 if total_cartera > 0 else 0
+    total_morosidad = estado_cuenta[estado_cuenta['Dias'] > 30]['Balance'].sum()
+    clientes_morosos = estado_cuenta[estado_cuenta['Dias'] > 30]['Codigo'].nunique()
+    porcentaje_morosidad = (total_morosidad / total_cartera) if total_cartera > 0 else 0
     dso = (estado_cuenta['Balance'] * estado_cuenta['Dias']).sum() / total_cartera if total_cartera > 0 else 0
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("📊 Total en Cartera", format_currency(total_cartera))
+        st.metric("📊 Total en Cartera", f"${total_cartera:,.2f}")
     with col2:
-        st.metric("⚠️ Total en Morosidad", format_currency(total_morosidad), f"{porcentaje_morosidad:.1f}% de la cartera")
+        st.metric("⚠️ Total en Morosidad", 
+                f"${total_morosidad:,.2f}", 
+                f"{porcentaje_morosidad:.1%} de la cartera")
     with col3:
         st.metric("👥 Clientes Morosos", clientes_morosos)
     with col4:
         st.metric("⏳ DSO Promedio", f"{dso:.0f} días")
     
-    # Gráficos de tendencia
+    # GRÁFICOS DE TENDENCIA
     st.subheader("📈 Evolución Temporal", divider="gray")
     
     col1, col2 = st.columns(2)
     with col1:
+        # Gráfico de evolución mensual
+        estado_cuenta['Mes'] = estado_cuenta['Fecha_fatura'].dt.to_period('M').astype(str)
+        evolucion_mensual = estado_cuenta.groupby('Mes')['Balance'].sum().reset_index()
+        
         fig = px.line(
-            estado_cuenta.groupby('Fecha_fatura')['Balance'].sum().reset_index(), 
-            x='Fecha_fatura', 
-            y='Balance', 
-            title='Evolución de la Cartera',
-            labels={'Balance': 'Monto', 'Fecha_fatura': 'Fecha de Factura'}
+            evolucion_mensual,
+            x='Mes',
+            y='Balance',
+            title='Evolución Mensual de la Cartera',
+            labels={'Balance': 'Saldo ($)', 'Mes': 'Periodo'}
         )
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
+        # Distribución por estado de morosidad
+        distrib_morosidad = estado_cuenta.groupby('Estado_Morosidad')['Balance'].sum().reset_index()
+        
         fig = px.pie(
-            estado_cuenta, 
-            names='Estado_Morosidad', 
+            distrib_morosidad,
+            names='Estado_Morosidad',
             values='Balance',
-            title='Distribución de Saldos por Estado de Morosidad',
+            title='Distribución por Estado de Morosidad',
             hole=0.3
         )
         st.plotly_chart(fig, use_container_width=True)
     
-    # Análisis por método de pago
-    st.subheader("💳 Análisis por Método de Pago", divider="gray")
+    # ANÁLISIS POR MÉTODO DE PAGO (VERSIÓN CORREGIDA)
+    st.subheader("💳 Análisis de Pagos Realizados", divider="gray")
     
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if not comportamiento_pago.empty and 'Pagado' in comportamiento_pago.columns:
+            # Limpieza de datos de pagos
+            comportamiento_pago['Pagado'] = (
+                comportamiento_pago['Pagado']
+                .astype(str)
+                .str.replace(',', '')
+                .apply(pd.to_numeric, errors='coerce')
+                .fillna(0)
+            )
+            # Gráfico de distribución de montos pagados
     col1, col2 = st.columns(2)
     with col1:
         if not comportamiento_pago.empty:
@@ -272,35 +294,177 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        if not comportamiento_pago.empty and not estado_cuenta.empty:
-            pago_morosidad = pd.merge(
-                comportamiento_pago.melt(id_vars=['Codigo'], 
-                                      value_vars=['Efectivo', 'Cheque', 'Tarjeta', 'Transferencia'],
-                                      var_name='Metodo', value_name='Monto'),
-                estado_cuenta[['Codigo', 'Estado_Morosidad', 'Balance', 'Dias']],
-                on='Codigo',
-                how='left'
-            )
+        if not comportamiento_pago.empty and 'Pagado' in comportamiento_pago.columns:
+            # Resumen por método de pago
+            metodos_pago = ['Efectivo', 'Cheque', 'Tarjeta', 'Transferencia']
+            resumen = []
             
-            resumen_metodos = pago_morosidad.groupby(['Metodo', 'Estado_Morosidad']).agg({
-                'Codigo': 'nunique',
-                'Balance': 'sum',
-                'Dias': 'mean'
-            }).reset_index()
+            for metodo in metodos_pago:
+                if metodo in comportamiento_pago.columns:
+                    # Limpiar método específico
+                    comportamiento_pago[metodo] = (
+                        comportamiento_pago[metodo]
+                        .astype(str)
+                        .str.replace(',', '')
+                        .apply(pd.to_numeric, errors='coerce')
+                        .fillna(0)
+                    )
+                    
+                    # Filtrar solo transacciones con este método
+                    mask = (comportamiento_pago[metodo] > 0)
+                    total_pagado = comportamiento_pago.loc[mask, 'Pagado'].sum()
+                    num_transacciones = mask.sum()
+                    
+                    resumen.append({
+                        'Método': metodo,
+                        'Total Pagado': total_pagado,
+                        'Transacciones': num_transacciones
+                    })
+            
+            # Crear y mostrar tabla
+            df_resumen = pd.DataFrame(resumen)
             
             st.dataframe(
-                resumen_metodos.assign(
-                    Balance=resumen_metodos['Balance'].apply(format_currency),
-                    Dias=resumen_metodos['Dias'].apply(lambda x: f"{x:.0f}")
-                ).rename(columns={
-                    'Codigo': 'Cant. Clientes',
-                    'Balance': 'Total Facturado',
-                    'Dias': 'Días Vencidos Prom.'
-                }),
+                df_resumen.assign(
+                    **{
+                        'Total Pagado': df_resumen['Total Pagado'].apply(lambda x: f"${x:,.2f}"),
+                        '% del Total': df_resumen['Total Pagado'] / df_resumen['Total Pagado'].sum()
+                    }
+                ).sort_values('Total Pagado', ascending=False),
+                column_config={
+                    '% del Total': st.column_config.ProgressColumn(
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=1
+                    )
+                },
                 hide_index=True,
                 use_container_width=True
             )
+            
+            # Estadísticas adicionales
+            with st.expander("📌 Estadísticas Detalladas"):
+                st.write(f"**Total general pagado:** ${comportamiento_pago['Pagado'].sum():,.2f}")
+                st.write(f"**Pago promedio:** ${comportamiento_pago['Pagado'].mean():,.2f}")
+                st.write(f"**Transacciones registradas:** {len(comportamiento_pago)}")
+                st.write(f"**Clientes únicos:** {comportamiento_pago['Codigo'].nunique()}")
+    
+    # ANÁLISIS ADICIONAL
+    st.subheader("🔍 Análisis Complementario", divider="gray")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Top 10 clientes con mayor saldo
+        top_clientes = (
+            estado_cuenta.groupby('Nombre Cliente')
+            .agg({'Balance': 'sum', 'Dias': 'mean'})
+            .nlargest(10, 'Balance')
+            .reset_index()
+        )
+        
+        fig = px.bar(
+            top_clientes,
+            x='Nombre Cliente',
+            y='Balance',
+            title='Top 10 Clientes por Saldo',
+            labels={'Balance': 'Saldo ($)', 'Nombre Cliente': 'Cliente'},
+            hover_data=['Dias']
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Distribución por días de atraso
+        fig = px.box(
+            estado_cuenta,
+            x='Dias',
+            title='Distribución de Días de Atraso',
+            labels={'Dias': 'Días de atraso'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
+    st.subheader("💳 Análisis Detallado de Métodos de Pago", divider="gray")
+    
+    if not comportamiento_pago.empty and 'Pagado' in comportamiento_pago.columns:
+        # Limpieza de datos
+        comportamiento_pago['Pagado'] = (
+            comportamiento_pago['Pagado']
+            .astype(str)
+            .str.replace(',', '')
+            .apply(pd.to_numeric, errors='coerce')
+            .fillna(0)
+        )
+        # Preparar datos para la tabla
+        metodos_pago = ['Efectivo', 'Cheque', 'Tarjeta', 'Transferencia']
+        resultados = []
+        
+        for metodo in metodos_pago:
+            if metodo in comportamiento_pago.columns:
+                # Limpiar método específico
+                comportamiento_pago[metodo] = (
+                    comportamiento_pago[metodo]
+                    .astype(str)
+                    .str.replace(',', '')
+                    .apply(pd.to_numeric, errors='coerce')
+                    .fillna(0)
+                )
+                # Filtrar solo transacciones con este método
+                mask_metodo = (comportamiento_pago[metodo] > 0)
+                df_metodo = comportamiento_pago[mask_metodo].copy()
+                
+                # Obtener estado de morosidad si existe
+                if not estado_cuenta.empty:
+                    df_metodo = df_metodo.merge(
+                        estado_cuenta[['Codigo', 'Estado_Morosidad']].drop_duplicates(),
+                        on='Codigo',
+                        how='left'
+                    )
+                    df_metodo['Estado_Morosidad'] = df_metodo['Estado_Morosidad'].fillna('Sin datos')
+                else:
+                    df_metodo['Estado_Morosidad'] = 'Sin datos'
+                
+                # Agrupar por estado de morosidad
+                grupo = df_metodo.groupby('Estado_Morosidad').agg({
+                    'Pagado': 'sum',
+                    'Codigo': 'nunique',
+                    metodo: 'count'
+                }).reset_index()
+                
+                for _, row in grupo.iterrows():
+                    resultados.append({
+                        'Método': metodo,
+                        'Estado Morosidad': row['Estado_Morosidad'],
+                        'Total Pagado': row['Pagado'],
+                        'Transacciones': row[metodo],
+                        'Clientes': row['Codigo']
+                    })
+        
+        # Crear DataFrame final
+        if resultados:
+            df_resultados = pd.DataFrame(resultados)
+            total_general = df_resultados['Total Pagado'].sum()
+            
+            # Formatear tabla
+            st.dataframe(
+                df_resultados.assign(
+                    **{
+                        'Total Pagado': df_resultados['Total Pagado'].apply(lambda x: f"${x:,.2f}"),
+                        '% del Total': df_resultados['Total Pagado'] / total_general
+                    }
+                ).sort_values(['Método', 'Total Pagado'], ascending=[True, False]),
+                column_config={
+                    '% del Total': st.column_config.ProgressColumn(
+                        format="%.1f%%",
+                        min_value=0,
+                        max_value=1,
+                        width="medium"
+                    )
+                },
+                hide_index=True,
+                use_container_width=True,
+                height=500
+            )
+            
 # =============================================
 # PESTAÑA 2: ANÁLISIS DE MOROSIDAD
 # =============================================
@@ -503,39 +667,77 @@ with tab3:
 with tab4:
     st.header("👤 Perfil de Cliente", divider="blue")
     
+    # Obtener todos los clientes únicos de AMBAS fuentes de datos
+    clientes_estado = estado_cuenta[['Codigo', 'Nombre Cliente']].drop_duplicates()
+    clientes_pago = comportamiento_pago[['Codigo', 'Nombre Cliente']].drop_duplicates()
+    
+    # Combinar ambos DataFrames y eliminar duplicados
+    todos_clientes = pd.concat([clientes_estado, clientes_pago]).drop_duplicates('Codigo')
+    
+    # Crear opciones para el selectbox
+    opciones_clientes = {
+        row['Codigo']: f"{row['Codigo']} - {row['Nombre Cliente']}" 
+        for _, row in todos_clientes.iterrows()
+    }
+    
     cliente_seleccionado = st.selectbox(
         "🔍 Buscar Cliente por Código o Nombre",
-        options=estado_cuenta['Codigo'].unique(),
-        format_func=lambda x: f"{x} - {estado_cuenta[estado_cuenta['Codigo'] == x]['Nombre Cliente'].iloc[0]}"
+        options=list(opciones_clientes.keys()),
+        format_func=lambda x: opciones_clientes[x]
     )
     
-    cliente_data = estado_cuenta[estado_cuenta['Codigo'] == cliente_seleccionado]
-    cliente_nombre = cliente_data['Nombre Cliente'].iloc[0]
-    cliente_pagos = comportamiento_pago[comportamiento_pago['Codigo'] == cliente_seleccionado]
+    # Obtener datos del cliente seleccionado de ambas fuentes
+    cliente_data_estado = estado_cuenta[estado_cuenta['Codigo'] == cliente_seleccionado]
+    cliente_data_pago = comportamiento_pago[comportamiento_pago['Codigo'] == cliente_seleccionado]
+    
+    # Determinar el nombre del cliente (puede venir de cualquiera de las dos fuentes)
+    cliente_nombre = ""
+    if not cliente_data_estado.empty:
+        cliente_nombre = cliente_data_estado['Nombre Cliente'].iloc[0]
+    elif not cliente_data_pago.empty:
+        cliente_nombre = cliente_data_pago['Nombre Cliente'].iloc[0]
+    else:
+        st.error("No se encontró información para este cliente")
+        st.stop()
     
     st.subheader(f"📋 Información General de {cliente_nombre}", divider="gray")
     
+    # Mostrar diferentes métricas dependiendo de qué datos están disponibles
     col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.metric("📅 Facturas Pendientes", len(cliente_data))
-        st.metric("💰 Balance Total", format_currency(cliente_data['Balance'].sum()))
+        if not cliente_data_estado.empty:
+            st.metric("📅 Facturas Pendientes", len(cliente_data_estado))
+            st.metric("💰 Balance Total", format_currency(cliente_data_estado['Balance'].sum()))
+        else:
+            st.metric("📅 Facturas Pendientes", "N/A")
+            st.metric("💰 Balance Total", "N/A")
     
     with col2:
-        st.metric("⏱️ Días de Atraso Promedio", f"{cliente_data['Dias'].mean():.0f}")
-        st.metric("📉 Porcentaje en Morosidad", 
-                 f"{(cliente_data[cliente_data['Dias'] > 60]['Balance'].sum() / cliente_data['Balance'].sum() * 100):.1f}%")
+        if not cliente_data_estado.empty:
+            st.metric("⏱️ Días de Atraso Promedio", f"{cliente_data_estado['Dias'].mean():.0f}")
+            morosidad = (cliente_data_estado[cliente_data_estado['Dias'] > 60]['Balance'].sum() / 
+                        cliente_data_estado['Balance'].sum() * 100) if cliente_data_estado['Balance'].sum() > 0 else 0
+            st.metric("📉 Porcentaje en Morosidad", f"{morosidad:.1f}%")
+        else:
+            st.metric("⏱️ Días de Atraso Promedio", "N/A")
+            st.metric("📉 Porcentaje en Morosidad", "N/A")
     
     with col3:
-        st.metric("⚠️ Probabilidad de Morosidad", 
-                 format_percent(cliente_data['Probabilidad_Morosidad'].mean()))
-        st.metric("💳 Límite Recomendado", 
-                 format_currency(cliente_data['Inicial'].mean() * 0.8))
+        if not cliente_data_estado.empty:
+            st.metric("⚠️ Probabilidad de Morosidad", 
+                     format_percent(cliente_data_estado['Probabilidad_Morosidad'].mean()))
+            st.metric("💳 Límite Recomendado", 
+                     format_currency(cliente_data_estado['Inicial'].mean() * 0.8))
+        else:
+            st.metric("⚠️ Probabilidad de Morosidad", "N/A")
+            st.metric("💳 Límite Recomendado", "N/A")
     
     st.subheader("📅 Historial de Pagos", divider="gray")
     
-    if not cliente_pagos.empty:
+    if not cliente_data_pago.empty:
         fig = px.line(
-            cliente_pagos.sort_values('Fecha_fatura'), 
+            cliente_data_pago.sort_values('Fecha_fatura'), 
             x='Fecha_fatura', 
             y='Pagado',
             title='Historial de Pagos',
@@ -543,7 +745,7 @@ with tab4:
         )
         st.plotly_chart(fig, use_container_width=True)
         
-        metodos_pago = cliente_pagos[['Efectivo', 'Cheque', 'Tarjeta', 'Transferencia']].sum().reset_index()
+        metodos_pago = cliente_data_pago[['Efectivo', 'Cheque', 'Tarjeta', 'Transferencia']].sum().reset_index()
         metodos_pago.columns = ['Método', 'Monto']
         fig = px.pie(
             metodos_pago, 
@@ -553,8 +755,25 @@ with tab4:
             hole=0.3
         )
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Mostrar tabla con últimos 5 pagos
+        st.write("**Últimos Pagos Realizados:**")
+        st.dataframe(
+            cliente_data_pago.sort_values('Fecha_fatura', ascending=False).head(5)[[
+                'Fecha_fatura', 'Pagado', 'Efectivo', 'Cheque', 'Tarjeta', 'Transferencia'
+            ]].rename(columns={
+                'Fecha_fatura': 'Fecha',
+                'Pagado': 'Total Pagado'
+            }),
+            hide_index=True,
+            use_container_width=True
+        )
     else:
         st.warning("No se encontró historial de pagos para este cliente")
+    
+    # Mostrar mensaje si no hay datos de estado de cuenta
+    if cliente_data_estado.empty:
+        st.info("ℹ️ Este cliente no tiene facturas pendientes en el estado de cuenta")
 
 # =============================================
 # PESTAÑA 5: SEGMENTACIÓN
@@ -690,26 +909,61 @@ with tab5:
 with tab6:
     st.header("🧮 Simulador de Riesgo Crediticio", divider="blue")
     
+    # Obtener todos los clientes únicos de AMBAS fuentes de datos
+    clientes_estado = estado_cuenta[['Codigo', 'Nombre Cliente']].drop_duplicates()
+    clientes_pago = comportamiento_pago[['Codigo', 'Nombre Cliente']].drop_duplicates()
+    todos_clientes = pd.concat([clientes_estado, clientes_pago]).drop_duplicates('Codigo')
+    
     col1, col2 = st.columns(2)
     
     with col1:
+        # Crear opciones para el selectbox
+        opciones_clientes = {
+            row['Codigo']: f"{row['Codigo']} - {row['Nombre Cliente']}" 
+            for _, row in todos_clientes.iterrows()
+        }
+        
         cliente_sim = st.selectbox(
             "👤 Seleccione Cliente para Simulación",
-            options=estado_cuenta['Codigo'].unique(),
-            format_func=lambda x: f"{x} - {estado_cuenta[estado_cuenta['Codigo'] == x]['Nombre Cliente'].iloc[0]}"
+            options=list(opciones_clientes.keys()),
+            format_func=lambda x: opciones_clientes[x]
         )
         
-        cliente_info = estado_cuenta[estado_cuenta['Codigo'] == cliente_sim].iloc[0]
+        # Obtener datos del cliente de estado_cuenta (si existen)
+        cliente_info_estado = estado_cuenta[estado_cuenta['Codigo'] == cliente_sim]
         
-        st.metric("📊 Balance Actual", format_currency(cliente_info['Balance']))
-        st.metric("⏳ Días de Atraso", f"{cliente_info['Dias']:.0f}")
-        st.metric("⚠️ Riesgo Actual", format_percent(cliente_info['Probabilidad_Morosidad']))
+        # Obtener datos del cliente de comportamiento_pago (si existen)
+        cliente_info_pago = comportamiento_pago[comportamiento_pago['Codigo'] == cliente_sim]
+        
+        # Determinar el nombre del cliente
+        cliente_nombre = ""
+        if not cliente_info_estado.empty:
+            cliente_nombre = cliente_info_estado['Nombre Cliente'].iloc[0]
+        elif not cliente_info_pago.empty:
+            cliente_nombre = cliente_info_pago['Nombre Cliente'].iloc[0]
+        
+        # Mostrar métricas con valores por defecto si no hay datos en estado_cuenta
+        balance_actual = cliente_info_estado['Balance'].sum() if not cliente_info_estado.empty else 0
+        dias_atraso = cliente_info_estado['Dias'].mean() if not cliente_info_estado.empty else 0
+        riesgo_actual = cliente_info_estado['Probabilidad_Morosidad'].mean() if not cliente_info_estado.empty else 0.3  # Valor por defecto
+        
+        st.metric("📊 Balance Actual", format_currency(balance_actual))
+        st.metric("⏳ Días de Atraso", f"{dias_atraso:.0f}")
+        st.metric("⚠️ Riesgo Actual", format_percent(riesgo_actual))
+        
+        # Obtener monto inicial para simulación (usar promedio de pagos si no hay estado_cuenta)
+        if not cliente_info_estado.empty:
+            monto_inicial = cliente_info_estado['Inicial'].mean()
+        elif not cliente_info_pago.empty:
+            monto_inicial = cliente_info_pago['Pagado'].mean()
+        else:
+            monto_inicial = 10000  # Valor por defecto
     
     with col2:
         monto_simular = st.number_input(
             "💰 Monto a Evaluar",
             min_value=0.0,
-            value=float(cliente_info['Inicial']),
+            value=float(monto_inicial),
             step=1000.0
         )
         
@@ -720,14 +974,75 @@ with tab6:
             step=15
         )
         
-        # Cálculo de riesgo simulado
-        riesgo_base = cliente_info['Probabilidad_Morosidad']
-        factor_monto = min(monto_simular / (cliente_info['Inicial'] + 1e-6), 2)
+        # Factores adicionales para la simulación
+        st.markdown("**🔍 Factores Adicionales**")
+        
+        # Calcular historial de pagos basado en datos disponibles
+        if not cliente_info_pago.empty:
+            # Si tenemos datos de pagos, calcular puntuación basada en:
+            # 1. Número total de pagos
+            # 2. Consistencia en montos
+            # 3. Frecuencia de pagos
+            
+            num_pagos = cliente_info_pago.shape[0]
+            monto_std = cliente_info_pago['Pagado'].std()
+            freq_pagos = (cliente_info_pago['Fecha_fatura'].max() - cliente_info_pago['Fecha_fatura'].min()).days / num_pagos if num_pagos > 1 else 30
+            
+            # Calcular puntuación (1-5)
+            historial_valor = min(5, max(1, 
+                int((num_pagos/10) +          # Más pagos = mejor
+                (1 - monto_std/monto_inicial if monto_inicial > 0 else 0) +  # Menor variación = mejor
+                (30/freq_pagos if freq_pagos > 0 else 1)    # Pagos más frecuentes = mejor
+            )))
+        else:
+            historial_valor = 3  # Valor por defecto si no hay datos
+            
+        historial_pagos = st.slider(
+            "Historial de Pagos (1 = Malo, 5 = Excelente)",
+            min_value=1,
+            max_value=5,
+            value=historial_valor
+        )
+        
+        # Determinar tipo de cliente basado en datos disponibles
+        if not cliente_info_pago.empty:
+            num_pagos = cliente_info_pago.shape[0]
+            tipo_index = min(3, int(num_pagos / 5))  # Más pagos = mejor clasificación
+        else:
+            tipo_index = 0  # "Nuevo" por defecto
+            
+        tipo_cliente = st.selectbox(
+            "Tipo de Cliente",
+            options=["Nuevo", "Ocasional", "Recurrente", "Preferencial"],
+            index=tipo_index
+        )
+        
+        # Cálculo de riesgo simulado mejorado
+        riesgo_base = riesgo_actual
+        
+        # Ajustar riesgo base según historial de pagos (si existe)
+        if not cliente_info_pago.empty:
+            # Calcular riesgo basado en variabilidad de pagos
+            pagos_std = cliente_info_pago['Pagado'].std()
+            riesgo_base = max(riesgo_base, min(0.7, pagos_std/(monto_inicial + 1e-6)))  # Más variación = mayor riesgo
+            
+        # Factores de ajuste
+        factor_monto = min(monto_simular / (monto_inicial + 1e-6), 3)  # Evitar división por cero
         factor_plazo = plazo_simular / 30
-        riesgo_simulado = min(riesgo_base * factor_monto * factor_plazo, 0.99)
+        factor_historial = 1.5 - (historial_pagos * 0.1)  # Mejor historial reduce riesgo
+        factor_tipo = {
+            "Nuevo": 1.2,
+            "Ocasional": 1.1,
+            "Recurrente": 0.9,
+            "Preferencial": 0.8
+        }[tipo_cliente]
+        
+        # Cálculo final del riesgo
+        riesgo_simulado = min(riesgo_base * factor_monto * factor_plazo * factor_historial * factor_tipo, 0.99)
         
         st.subheader("📈 Resultado de la Simulación", divider="gray")
         
+        # Mostrar resultado con estilo según el nivel de riesgo
         if riesgo_simulado > 0.8:
             st.error(f"🚨 **Alto Riesgo** ({format_percent(riesgo_simulado)})")
         elif riesgo_simulado > 0.6:
@@ -739,17 +1054,27 @@ with tab6:
     
     st.subheader("📋 Recomendaciones Detalladas", divider="gray")
     
+    # Sección de recomendaciones dinámicas
     if riesgo_simulado > 0.8:
         st.error("""
         **🚨 Acciones Recomendadas:**
-        1. No aprobar crédito adicional sin garantías
+        1. No aprobar crédito adicional sin garantías sólidas
         2. Exigir pagos adelantados (50% mínimo)
         3. Plazo máximo: 7 días
-        4. Revisar histórico completo
-        5. Asignar ejecutivo especializado
-        6. Considerar acciones legales
-        7. Reducir límite de crédito en 75%
+        4. Revisar histórico completo de pagos
+        5. Considerar acciones legales preventivas
+        6. Reducción de límite de crédito en 75%
+        7. Supervisión diaria del caso
         """)
+        
+        # Mostrar advertencia adicional para clientes sin historial en estado_cuenta
+        if cliente_info_estado.empty:
+            st.warning("""
+            **⚠️ Atención:** Este cliente no tiene facturas pendientes registradas, 
+            pero el análisis de riesgo indica alta probabilidad de mora. 
+            Verificar cuidadosamente su historial crediticio externo.
+            """)
+            
     elif riesgo_simulado > 0.6:
         st.warning("""
         **⚠️ Acciones Recomendadas:**
@@ -757,32 +1082,52 @@ with tab6:
         2. Exigir aval o garantía
         3. Plazo máximo: 15 días
         4. Seguimiento semanal
-        5. Descuentos por pronto pago
-        6. Requerir historial bancario
-        7. Alertas tempranas
+        5. Descuentos por pronto pago (máx. 5%)
+        6. Requerir historial bancario reciente
+        7. Alertas tempranas automatizadas
         """)
+        
     elif riesgo_simulado > 0.4:
         st.info("""
         **🔍 Acciones Recomendadas:**
-        1. Mantener límite actual
+        1. Mantener límite actual o aumento moderado (10-20%)
         2. Plazo máximo: 30 días
         3. Seguimiento mensual
         4. Planes de pago estructurados
-        5. Recordatorios automáticos
-        6. Revisión trimestral
+        5. Recordatorios automáticos a 5 y 2 días antes
+        6. Revisión trimestral de comportamiento
         7. Considerar garantías para montos altos
         """)
+        
     else:
         st.success("""
         **✅ Acciones Recomendadas:**
-        1. Considerar aumento de línea
+        1. Considerar aumento de línea (20-30%)
         2. Plazos flexibles (hasta 60 días)
-        3. Revisión trimestral
-        4. Beneficios por fidelidad
-        5. Proceso simplificado
+        3. Revisión semestral
+        4. Beneficios por fidelidad (2% descuento)
+        5. Proceso simplificado de aprobación
         6. Incluir en programas preferentes
-        7. Evaluar créditos especiales
+        7. Evaluar créditos especiales con tasas preferenciales
         """)
+    
+    # Mostrar información adicional para clientes sin datos en estado_cuenta
+    if cliente_info_estado.empty and not cliente_info_pago.empty:
+        st.markdown("---")
+        st.subheader("ℹ️ Información Adicional del Historial de Pagos")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Total de Pagos Registrados", cliente_info_pago.shape[0])
+            st.metric("Promedio de Pagos", format_currency(cliente_info_pago['Pagado'].mean()))
+            
+        with col2:
+            ultimo_pago = cliente_info_pago['Fecha_fatura'].max()
+            st.metric("Último Pago", ultimo_pago.strftime("%d/%m/%Y") if not pd.isnull(ultimo_pago) else "N/A")
+            
+            monto_total = cliente_info_pago['Pagado'].sum()
+            st.metric("Monto Total Pagado", format_currency(monto_total))
 
 # =============================================
 # FILTROS GLOBALES (sidebar)

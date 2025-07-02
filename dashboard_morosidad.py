@@ -1186,5 +1186,4 @@ with st.sidebar:
 st.sidebar.markdown("---")
 st.sidebar.info("""
     **Dashboard cxc IDEMEFA**  
-    Versión 2.0 - Junio 2024
 """)

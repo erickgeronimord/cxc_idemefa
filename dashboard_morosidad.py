@@ -1164,7 +1164,7 @@ with st.sidebar:
             (estado_cuenta['Fecha_fatura'] <= pd.to_datetime(fecha_fin)) &
             (estado_cuenta['Estado_Morosidad'].isin(estados))
         ]
-        st.experimental_rerun()
+        st.rerun()
 
 # =============================================
 # EXPORTACIÓN DE DATOS
@@ -1186,4 +1186,5 @@ with st.sidebar:
 st.sidebar.markdown("---")
 st.sidebar.info("""
     **Dashboard cxc IDEMEFA**  
+    Versión 2.0 - Junio 2024
 """)
